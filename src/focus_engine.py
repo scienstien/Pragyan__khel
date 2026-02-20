@@ -99,7 +99,9 @@ class FocusEngine:
         iou: float = 0.5,
         imgsz: int = 640,
         job_root: str = "runs/jobs",
-    ):
+        
+    ):  
+        self._cap_pos: Dict[str, int] = {}
         self.model_path = model_path
         self.device = device
         self.tracker = tracker
@@ -139,6 +141,7 @@ class FocusEngine:
             json.dump(meta, f, indent=2)
 
         self._video_caps[video_id] = cap
+        self._cap_pos.pop(video_id, None)
         self._states[video_id] = TargetState()
 
         return meta
@@ -148,6 +151,7 @@ class FocusEngine:
         if cap is not None:
             cap.release()
         self._video_caps.pop(video_id, None)
+        self._cap_pos.pop(video_id, None)
         self._states.pop(video_id, None)
 
     def get_meta(self, video_id: str) -> Dict[str, Any]:
@@ -159,10 +163,34 @@ class FocusEngine:
         cap = self._video_caps.get(video_id)
         if cap is None:
             raise RuntimeError(f"Job not initialized: {video_id}")
-        cap.set(cv2.CAP_PROP_POS_FRAMES, int(frame_index))
+
+        frame_index = int(frame_index)
+        cur = int(self._cap_pos.get(video_id, 0))
+
+        # If we're asking for the next frame (or same), avoid expensive seek
+        if frame_index == cur:
+            ok, frame = cap.read()
+            if not ok or frame is None:
+                raise RuntimeError(f"Cannot read frame {frame_index} for {video_id}")
+            self._cap_pos[video_id] = cur + 1
+            return frame
+
+        # If small forward jump, read-and-discard instead of cap.set()
+        if frame_index > cur and (frame_index - cur) <= 10:
+            frame = None
+            for _ in range(frame_index - cur + 1):
+                ok, frame = cap.read()
+                if not ok or frame is None:
+                    raise RuntimeError(f"Cannot read frame {frame_index} for {video_id}")
+            self._cap_pos[video_id] = frame_index + 1
+            return frame
+
+        # Otherwise do a seek (slow but acceptable for scrubbing)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
         ok, frame = cap.read()
         if not ok or frame is None:
             raise RuntimeError(f"Cannot read frame {frame_index} for {video_id}")
+        self._cap_pos[video_id] = frame_index + 1
         return frame
 
     def _infer_track(self, frame: np.ndarray) -> Any:
@@ -222,9 +250,18 @@ class FocusEngine:
 
         return instances
 
-    def select_target(self, video_id: str, frame_index: int, x: int, y: int) -> Dict[str, Any]:
+    def select_target(self, video_id: str, frame_index: int, x: int, y: int, downscale: Optional[int] = None) -> Dict[str, Any]:
         frame = self._read_frame(video_id, frame_index)
+
+        # apply the SAME downscale used in preview so click coords match
+        if downscale is not None and downscale > 0:
+            h, w = frame.shape[:2]
+            scale = float(downscale) / max(h, w)
+            if scale < 1.0:
+                frame = cv2.resize(frame, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+
         res0 = self._infer_track(frame)
+        instances = self._extract_instances(res0, frame.shape)
         instances = self._extract_instances(res0, frame.shape)
 
         pick = None
@@ -282,6 +319,148 @@ class FocusEngine:
         st.max_misses = int(n)
         self._persist_state(video_id)
         return {"ok": True, "max_misses": st.max_misses}
+    def process_frame_fast(
+    self,
+    video_id: str,
+    frame_index: int,
+    infer_every: int = 3,
+    blur_ksize: int = 25,
+    feather_px: int = 5,
+    outline: bool = False,
+    outline_strength: float = 0.6,
+    downscale: Optional[int] = 640,
+) -> Dict[str, Any]:
+        """
+        Fast preview:
+        - Full YOLO+tracking inference only every `infer_every` frames.
+        - In between, reuse cached mask EMA and just composite blur (cheap).
+        """
+        st = self._states[video_id]
+        frame = self._read_frame(video_id, frame_index)
+
+        # consistent downscale for both inference and non-inference frames
+        if downscale is not None and downscale > 0:
+            h, w = frame.shape[:2]
+            scale = float(downscale) / max(h, w)
+            if scale < 1.0:
+                frame = cv2.resize(frame, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+
+        H, W = frame.shape[:2]
+
+        do_infer = (frame_index % max(1, int(infer_every)) == 0) or (st.last_mask_ema is None)
+
+        selected_inst = None
+
+        if do_infer:
+            res0 = self._infer_track(frame)
+            instances = self._extract_instances(res0, frame.shape)
+
+            # 1) try lock by track ID
+            if st.locked and st.target_track_id is not None:
+                for inst in instances:
+                    if inst["track_id"] is not None and inst["track_id"] == st.target_track_id:
+                        selected_inst = inst
+                        break
+
+            # 2) fallback by IOU with last bbox
+            if selected_inst is None and st.locked and st.last_bbox is not None:
+                best = None
+                best_score = 0.0
+                for inst in instances:
+                    score = _iou(st.last_bbox, inst["bbox"])
+                    if score > best_score:
+                        best_score = score
+                        best = inst
+                if best is not None and best_score > 0.2:
+                    selected_inst = best
+                    if best["track_id"] is not None:
+                        st.target_track_id = best["track_id"]
+
+            # handle lost
+            if st.locked and selected_inst is None:
+                st.miss_count += 1
+                dropped = st.miss_count >= st.max_misses
+                if dropped:
+                    st.locked = False
+                    st.target_track_id = None
+                    st.last_bbox = None
+                    st.last_mask_ema = None
+                    st.miss_count = 0
+                self._persist_state(video_id)
+                return {
+                    "locked": False if dropped else True,
+                    "frame_index": frame_index,
+                    "miss_count": st.miss_count,
+                    "dropped": dropped,
+                    "image_bgr": frame,
+                }
+
+            # update mask cache if we have a selected instance
+            if st.locked and selected_inst is not None:
+                st.miss_count = 0
+                st.last_bbox = selected_inst["bbox"]
+
+                m = selected_inst["mask"]
+                if m is None:
+                    x1, y1, x2, y2 = selected_inst["bbox"]
+                    m = np.zeros((H, W), dtype=np.float32)
+                    m[y1:y2, x1:x2] = 1.0
+
+                if st.last_mask_ema is None:
+                    st.last_mask_ema = m.copy()
+                else:
+                    st.last_mask_ema = st.ema_alpha * m + (1.0 - st.ema_alpha) * st.last_mask_ema
+
+                st.last_mask_ema = np.clip(st.last_mask_ema, 0.0, 1.0)
+
+        # If not locked, just show original
+        if not st.locked:
+            return {
+                "locked": False,
+                "frame_index": frame_index,
+                "miss_count": st.miss_count,
+                "dropped": False,
+                "image_bgr": frame,
+            }
+
+        # If locked but mask not available yet, show original
+        if st.last_mask_ema is None:
+            return {
+                "locked": True,
+                "frame_index": frame_index,
+                "target_track_id": st.target_track_id,
+                "bbox": list(st.last_bbox) if st.last_bbox else None,
+                "miss_count": st.miss_count,
+                "dropped": False,
+                "image_bgr": frame,
+            }
+
+        # Composite with cached mask (cheap path)
+        mask01 = _mask_feather(st.last_mask_ema, feather_px=feather_px)
+        blurred = _gaussian_blur(frame, k=blur_ksize)
+
+        mask3 = np.repeat(mask01[:, :, None], 3, axis=2).astype(np.float32)
+        out = (frame.astype(np.float32) * mask3 + blurred.astype(np.float32) * (1.0 - mask3)).astype(np.uint8)
+
+        if outline:
+            edges = _mask_to_outline(mask01)
+            edge_mask = edges > 0
+            out = out.copy()
+            factor = 1.0 + float(outline_strength)
+            tmp = out[edge_mask].astype(np.float32) * factor
+            out[edge_mask] = np.clip(tmp, 0, 255).astype(np.uint8)
+
+        self._persist_state(video_id)
+
+        return {
+            "locked": True,
+            "frame_index": frame_index,
+            "target_track_id": st.target_track_id,
+            "bbox": list(st.last_bbox) if st.last_bbox else None,
+            "miss_count": st.miss_count,
+            "dropped": False,
+            "image_bgr": out,
+        }
 
     def process_frame(
         self,
