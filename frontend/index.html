@@ -1,0 +1,345 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>SmartFocus - Simple Client</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#0b0b0b; color:#eee; margin:0; padding:20px; }
+    .row { display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start; }
+    .panel { background:#151515; border:1px solid #2a2a2a; border-radius:12px; padding:16px; }
+    button { padding:10px 14px; border-radius:10px; border:0; cursor:pointer; background:#2d6cdf; color:white; font-weight:600; }
+    button:disabled { opacity:0.5; cursor:not-allowed; }
+    input { color:#eee; }
+    canvas { background:black; border-radius:12px; border:1px solid #2a2a2a; max-width: 100%; height:auto; }
+    .muted { color:#aaa; font-size:14px; }
+    .status { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+    .danger { background:#c0392b; }
+    .secondary { background:#555; }
+  </style>
+</head>
+<body>
+  <h2>SmartFocus — Minimal Client (WebSocket + Canvas)</h2>
+  <p class="muted">Upload → Stream → Click target → Render → Download</p>
+
+  <div class="row">
+    <div class="panel">
+      <div style="margin-bottom:10px;">
+        <input id="file" type="file" accept="video/*">
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button id="btnUpload">Upload</button>
+        <button id="btnConnect" class="secondary" disabled>Start Stream</button>
+        <button id="btnStop" class="secondary" disabled>Stop Stream</button>
+      </div>
+
+      <hr style="border:0; border-top:1px solid #2a2a2a; margin:14px 0;">
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button id="btnReset" class="secondary" disabled>Reset Target</button>
+        <button id="btnRender" disabled>Render</button>
+        <button id="btnDownload" disabled>Download</button>
+        <button id="btnNew" class="danger" disabled>New Video</button>
+      </div>
+
+      <hr style="border:0; border-top:1px solid #2a2a2a; margin:14px 0;">
+
+      <div class="status" id="status">Status: idle</div>
+      <div class="muted" id="meta"></div>
+      <div class="muted">Tip: click on the canvas to select the subject.</div>
+    </div>
+
+    <div class="panel">
+      <canvas id="cv" width="640" height="360"></canvas>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // CHANGE IF NEEDED
+  const API_URL = "http://10.99.224.115:8000";
+
+  let videoId = null;
+  let meta = null;
+
+  let ws = null;
+  let expectingBinary = false;
+  let lastHeader = null;
+  let lastFrameIndex = 0;
+  let lastDownscale = 640;
+
+  // simple "drop frames if busy" mechanism
+  let isDrawing = false;
+  let pendingFrame = null; // keep only the latest pending frame
+
+  const elFile = document.getElementById('file');
+  const btnUpload = document.getElementById('btnUpload');
+  const btnConnect = document.getElementById('btnConnect');
+  const btnStop = document.getElementById('btnStop');
+  const btnReset = document.getElementById('btnReset');
+  const btnRender = document.getElementById('btnRender');
+  const btnDownload = document.getElementById('btnDownload');
+  const btnNew = document.getElementById('btnNew');
+
+  const statusEl = document.getElementById('status');
+  const metaEl = document.getElementById('meta');
+
+  const canvas = document.getElementById('cv');
+  const ctx = canvas.getContext('2d');
+
+  function setStatus(s) {
+    statusEl.textContent = "Status: " + s;
+  }
+
+  function enableControls(afterUpload) {
+    btnConnect.disabled = !afterUpload;
+    btnReset.disabled = !afterUpload;
+    btnRender.disabled = !afterUpload;
+    btnDownload.disabled = !afterUpload;
+    btnNew.disabled = !afterUpload;
+  }
+
+  btnUpload.onclick = async () => {
+    const file = elFile.files && elFile.files[0];
+    if (!file) { alert("Choose a video first."); return; }
+
+    setStatus("uploading...");
+    btnUpload.disabled = true;
+
+    const fd = new FormData();
+    fd.append("file", file);
+
+    try {
+      const res = await fetch(API_URL + "/upload", { method:"POST", body: fd });
+      if (!res.ok) throw new Error("Upload failed: " + res.status);
+
+      const data = await res.json();
+      videoId = data.video_id;
+      meta = data.meta;
+
+      metaEl.textContent = `video_id=${videoId} | ${meta.width}x${meta.height} | fps=${meta.fps} | frames=${meta.frame_count}`;
+      setStatus("uploaded. ready to stream");
+      enableControls(true);
+      btnStop.disabled = true;
+      btnUpload.disabled = false;
+
+    } catch (e) {
+      console.error(e);
+      alert(e.message || "Upload failed");
+      setStatus("idle");
+      btnUpload.disabled = false;
+    }
+  };
+
+  btnConnect.onclick = () => {
+    if (!videoId) return;
+
+    if (ws) {
+      try { ws.close(); } catch {}
+      ws = null;
+    }
+
+    setStatus("connecting websocket...");
+    btnConnect.disabled = true;
+    btnStop.disabled = false;
+
+    ws = new WebSocket(API_URL.replace("http", "ws") + "/ws/stream");
+    ws.binaryType = "arraybuffer";
+
+    ws.onopen = () => {
+      setStatus("ws open. starting stream...");
+      // keep this simple + stable
+      const cfg = {
+        video_id: videoId,
+        downscale: 640,      // IMPORTANT: keep same for select
+        infer_every: 5,
+        jpg_quality: 70,
+        fps: 10,
+        blur_ksize: 25,
+        feather_px: 5,
+        outline: false
+      };
+      ws.send(JSON.stringify(cfg));
+    };
+
+    ws.onmessage = async (ev) => {
+      // JSON header
+      if (typeof ev.data === "string") {
+        const msg = JSON.parse(ev.data);
+
+        if (msg.type === "ready") {
+          setStatus("streaming (ws+canvas)");
+          expectingBinary = false;
+          lastHeader = null;
+          return;
+        }
+
+        if (msg.type === "error") {
+          setStatus("server error: " + msg.message);
+          return;
+        }
+
+        if (msg.type === "frame") {
+          lastHeader = msg;
+          lastFrameIndex = msg.frame_index;
+          lastDownscale = msg.downscale || 640;
+          expectingBinary = true;
+          return;
+        }
+
+        return;
+      }
+
+      // Binary JPEG
+      if (!expectingBinary || !lastHeader) return;
+      expectingBinary = false;
+
+      const buf = ev.data; // ArrayBuffer
+      // If we are already drawing, keep only latest buffer (drop older)
+      pendingFrame = { header: lastHeader, buf };
+
+      if (!isDrawing) {
+        drawLoop();
+      }
+    };
+
+    ws.onclose = () => {
+      setStatus("ws closed");
+      btnConnect.disabled = false;
+      btnStop.disabled = true;
+    };
+
+    ws.onerror = (e) => {
+      console.error("ws error", e);
+      setStatus("ws error");
+    };
+  };
+
+  async function drawLoop() {
+    if (!pendingFrame) return;
+    isDrawing = true;
+
+    const { header, buf } = pendingFrame;
+    pendingFrame = null;
+
+    try {
+      // Resize canvas to match streamed frame (so click mapping is 1:1)
+      if (canvas.width !== header.w || canvas.height !== header.h) {
+        canvas.width = header.w;
+        canvas.height = header.h;
+      }
+
+      const blob = new Blob([buf], { type: "image/jpeg" });
+      const bmp = await createImageBitmap(blob);
+
+      ctx.drawImage(bmp, 0, 0);
+
+      // Overlay tiny status
+      ctx.fillStyle = "rgba(0,0,0,0.55)";
+      ctx.fillRect(10, 10, 220, 28);
+      ctx.fillStyle = "#fff";
+      ctx.font = "14px ui-monospace, Menlo, monospace";
+      ctx.fillText(`frame ${header.frame_index}  ${header.locked ? "● TRACKING" : ""}`, 16, 30);
+
+    } catch (e) {
+      console.error("draw error", e);
+    } finally {
+      isDrawing = false;
+      if (pendingFrame) drawLoop(); // draw latest pending frame only
+    }
+  }
+
+  btnStop.onclick = () => {
+    if (ws) {
+      try { ws.close(); } catch {}
+      ws = null;
+    }
+    btnConnect.disabled = false;
+    btnStop.disabled = true;
+    setStatus("stopped");
+  };
+
+  // Click-to-select
+  canvas.addEventListener("click", async (e) => {
+    if (!videoId || !meta) return;
+
+    // Canvas is same size as downscaled frame => click coords are direct
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.floor((e.clientX - rect.left) * (canvas.width / rect.width));
+    const y = Math.floor((e.clientY - rect.top) * (canvas.height / rect.height));
+
+    const fd = new FormData();
+    fd.append("video_id", videoId);
+    fd.append("frame_index", String(lastFrameIndex)); // use last streamed frame index
+    fd.append("x", String(x));
+    fd.append("y", String(y));
+    fd.append("downscale", String(lastDownscale)); // MUST match stream downscale
+
+    try {
+      const res = await fetch(API_URL + "/select", { method:"POST", body: fd });
+      const data = await res.json();
+
+      if (data.selected || data.ok) {
+        setStatus("selected target ✅");
+      } else {
+        setStatus("no target found (try clicking on person/object)");
+      }
+    } catch (e2) {
+      console.error(e2);
+      setStatus("select failed");
+    }
+  });
+
+  btnReset.onclick = async () => {
+    if (!videoId) return;
+
+    const fd = new FormData();
+    fd.append("video_id", videoId);
+
+    try {
+      await fetch(API_URL + "/reset", { method:"POST", body: fd });
+      setStatus("reset ✅");
+    } catch (e) {
+      console.error(e);
+      setStatus("reset failed");
+    }
+  };
+
+  btnRender.onclick = async () => {
+    if (!videoId) return;
+    setStatus("rendering...");
+
+    const fd = new FormData();
+    fd.append("video_id", videoId);
+
+    try {
+      const res = await fetch(API_URL + "/render", { method:"POST", body: fd });
+      const data = await res.json();
+      if (data.ok) setStatus("render complete ✅");
+      else setStatus("render failed");
+    } catch (e) {
+      console.error(e);
+      setStatus("render failed");
+    }
+  };
+
+  btnDownload.onclick = () => {
+    if (!videoId) return;
+    window.open(API_URL + "/download?video_id=" + encodeURIComponent(videoId), "_blank");
+  };
+
+  btnNew.onclick = () => {
+    videoId = null;
+    meta = null;
+    metaEl.textContent = "";
+    setStatus("idle");
+    enableControls(false);
+    btnStop.disabled = true;
+    if (ws) { try { ws.close(); } catch {} ws = null; }
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+  };
+
+  enableControls(false);
+})();
+</script>
+</body>
+</html>
