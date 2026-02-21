@@ -1,4 +1,5 @@
 🧠 AI-Based Smart Autofocus & Dynamic Subject Tracking System
+
 Faustian_for{loop}
 
 🚀 Overview
@@ -20,30 +21,29 @@ Render a cinematic output video
 The system combines modern computer vision techniques such as object detection, multi-object tracking, and segmentation-based compositing to deliver a real-time interactive experience.
 
 🎯 Problem Statement
-
 Traditional autofocus systems focus only on faces or predefined objects.
 Our goal was to build a system that:
+_________________________________________
+1. Allows arbitrary object selection
 
-Allows arbitrary object selection
+2. Maintains subject identity across frames
 
-Maintains subject identity across frames
+3. Handles occlusion and motion
 
-Handles occlusion and motion
+4. Applies high-quality segmentation-based blur
 
-Applies high-quality segmentation-based blur
-
-Runs on-device using GPU acceleration
-
+5. Runs on-device using GPU acceleration
+_________________________________________________
 🏗️ System Architecture
 1️⃣ Vision Layer (AI Engine)
 
-YOLOv8 (Segmentation variant) for object detection and mask generation
+.YOLOv8 (Segmentation variant) for object detection and mask generation
 
-ByteTrack for persistent multi-object tracking
+.ByteTrack for persistent multi-object tracking
 
-Pixel-level segmentation for accurate subject isolation
+.Pixel-level segmentation for accurate subject isolation
 
-Selective Gaussian blur compositing for cinematic focus
+.Selective Gaussian blur compositing for cinematic focus
 
 2️⃣ Backend Layer (FastAPI)
 
@@ -53,21 +53,22 @@ Manages per-video tracking state
 
 Exposes REST API endpoints
 
-Uses GPU acceleration (RTX 4060)
+Uses GPU acceleration (RTX 4060) ##NOTE : WINDOWS   FIREWALL MIGHT INTERFARE DUE TO IT BEING A PRIVATE NETWORK
 
-3️⃣ Frontend Layer (Next.js)
+3️⃣ Frontend Layer (Simple Html with websockets)
 
-Upload interface
+.Upload interface
 
-Frame preview rendering
+.Frame preview rendering
 
-Click-to-select interaction
+.Click-to-select interaction
 
-Play/Pause controls
+.Play/Pause controls
 
-Render & download functionality
+.Render & download functionality
 
 🧠 Core Technical Concepts
+____________________________________________________
 🔹 Object Detection (YOLOv8)
 
 A one-stage real-time detector that predicts bounding boxes and segmentation masks in a single forward pass.
@@ -90,29 +91,32 @@ All future frames follow this identity
 
 For each frame:
 
-Extract subject mask
-
-Blur entire frame
-
-Composite sharp subject over blurred background
-
-Feather edges for smooth transitions
-
+1. Extract subject mask
+    |
+    |
+2. Blur entire frame
+    |
+    |
+3. Composite sharp subject over blurred background
+     |
+     |
+4. Feather edges for smooth transitions
+____________________________________________________
 ✨ Key Features
 
-Real-time object selection
+..Real-time object selection
 
-Persistent identity tracking
+..Persistent identity tracking
 
-Segmentation-based blur (not bounding-box blur)
+..Segmentation-based blur (not bounding-box blur)
 
-Instant focus switching
+..Instant focus switching
 
-GPU acceleration
+..GPU acceleration
 
-Modular architecture
+..Modular architecture
 
-Scalable backend API
+..Scalable backend API
 
 🎥 Live Camera Capability (V2)
 
@@ -127,7 +131,7 @@ Perform detection + tracking in real time
 Apply segmentation-based background blur
 
 However, in this hackathon version, we focused on uploaded video processing for stability and evaluation clarity.
-
+_________________________________________________________________________________________________
 In Version 2, we plan to:
 
 Integrate live webcam streaming into the frontend
@@ -137,7 +141,7 @@ Enable real-time autofocus in browser
 Support WebRTC-based streaming
 
 Deploy optimized streaming endpoints
-
+________________________________________________________________________________
 🖥️ Hardware Requirements
 
 NVIDIA GPU recommended (RTX 4060 used in development)
@@ -148,6 +152,7 @@ CUDA-compatible PyTorch
 
 📦 Installation & Setup Guide
 1️⃣ Clone the Repository
+```  bash
 git clone https://github.com/your-username/your-repo.git
 cd your-repo
 2️⃣ Create Virtual Environment
@@ -167,19 +172,20 @@ https://pytorch.org/get-started/locally/
 
 4️⃣ Run Backend (FastAPI)
 uvicorn api_ml:app --host 0.0.0.0 --port 8000
-
+````
 Check:
 
+```
 http://localhost:8000/health
 http://localhost:8000/docs
+```
 5️⃣ Run Frontend (Next.js)
 
 Navigate to frontend folder:
 
-cd TeamName_NextGenHackathon
-npm install
-npm run dev
-
+```
+cd Pragyaan_khel/frontend
+```
 Open:
 
 http://localhost:3000
@@ -198,6 +204,7 @@ http://<your-ip>:8000
 instead of localhost
 
 📡 API Endpoints
+```
 Upload Video
 POST /upload
 Get Preview Frame
@@ -210,6 +217,7 @@ Render Output
 POST /render
 Download Final Video
 GET /download
+````
 🧪 Running Locally Without Frontend
 
 You can test the model using:
@@ -244,20 +252,20 @@ Optimizing blur performance for real-time preview
 
 🌍 Real-World Applications
 
-Smart camera autofocus systems
+1.Smart camera autofocus systems
 
-Video conferencing tools
+2.Video conferencing tools
 
-Cinematic video editing
+3.Cinematic video editing
 
-Content creation platforms
+4.Content creation platforms
 
-Surveillance analytics
+5.Surveillance analytics
 
-Sports tracking systems
+6.Sports tracking systems like Cricket and F1
 
 🚀 Future Improvements
-
+>>>>>__________________________________<<<<
 Live webcam integration
 
 WebRTC streaming
@@ -270,8 +278,11 @@ Edge device optimization
 
 Cloud deployment
 
-🏁 Conclusion
+Due to lack of infra we couldnt deploy it to aws this time it was asking 50GB worth of compute
+>>>>>__________________________________<<<<
 
+🏁 Conclusion
+______________________________________
 This project demonstrates how modern computer vision techniques can be integrated into a scalable, interactive, and real-world application for dynamic autofocus and subject tracking.
 
 Our modular design ensures extensibility for live camera streaming, edge deployment, and production-scale integration.
