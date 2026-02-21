@@ -1,345 +1,1157 @@
 <!doctype html>
-<html>
+<html lang="en">
+
 <head>
   <meta charset="utf-8" />
-  <title>SmartFocus - Simple Client</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmartFocus — AI Video Focus Engine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
   <style>
-    body { font-family: Arial, sans-serif; background:#0b0b0b; color:#eee; margin:0; padding:20px; }
-    .row { display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start; }
-    .panel { background:#151515; border:1px solid #2a2a2a; border-radius:12px; padding:16px; }
-    button { padding:10px 14px; border-radius:10px; border:0; cursor:pointer; background:#2d6cdf; color:white; font-weight:600; }
-    button:disabled { opacity:0.5; cursor:not-allowed; }
-    input { color:#eee; }
-    canvas { background:black; border-radius:12px; border:1px solid #2a2a2a; max-width: 100%; height:auto; }
-    .muted { color:#aaa; font-size:14px; }
-    .status { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
-    .danger { background:#c0392b; }
-    .secondary { background:#555; }
+    /* ============= RESET & BASE ============= */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg-primary: #0a0a0f;
+      --bg-secondary: #12121a;
+      --bg-card: rgba(20, 20, 32, 0.7);
+      --bg-card-hover: rgba(28, 28, 44, 0.8);
+      --border: rgba(255, 255, 255, 0.06);
+      --border-active: rgba(99, 102, 241, 0.4);
+      --text-primary: #f1f1f4;
+      --text-secondary: #8b8d9e;
+      --text-muted: #5a5c6e;
+      --accent: #6366f1;
+      --accent-glow: rgba(99, 102, 241, 0.15);
+      --accent-hover: #818cf8;
+      --success: #22c55e;
+      --success-bg: rgba(34, 197, 94, 0.1);
+      --danger: #ef4444;
+      --danger-bg: rgba(239, 68, 68, 0.1);
+      --warning: #f59e0b;
+      --warning-bg: rgba(245, 158, 11, 0.08);
+      --gradient-1: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+      --gradient-2: linear-gradient(135deg, #1e1b4b 0%, #0a0a0f 100%);
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+      --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.3);
+      --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
+      --shadow-glow: 0 0 40px rgba(99, 102, 241, 0.12);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 20px;
+      --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ============= BACKGROUND EFFECTS ============= */
+    .bg-grid {
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+      background-size: 48px 48px;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .bg-glow {
+      position: fixed;
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      filter: blur(120px);
+      opacity: 0.08;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .bg-glow-1 {
+      top: -200px;
+      right: -100px;
+      background: #6366f1;
+    }
+
+    .bg-glow-2 {
+      bottom: -200px;
+      left: -100px;
+      background: #a855f7;
+    }
+
+    /* ============= LAYOUT ============= */
+    .app {
+      position: relative;
+      z-index: 1;
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 24px 24px 48px;
+    }
+
+    /* ============= HEADER ============= */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 32px;
+      padding: 16px 0;
+    }
+
+    .logo-group {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .logo-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: var(--radius-md);
+      background: var(--gradient-1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: var(--shadow-glow);
+    }
+
+    .logo-text h1 {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      background: var(--gradient-1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .logo-text p {
+      font-size: 13px;
+      color: var(--text-muted);
+      font-weight: 400;
+      margin-top: 1px;
+    }
+
+    .header-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 100px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .header-badge .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--text-muted);
+    }
+
+    .header-badge .dot.live {
+      background: var(--success);
+      box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+      animation: pulse-dot 2s infinite;
+    }
+
+    @keyframes pulse-dot {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.5;
+      }
+    }
+
+    /* ============= MAIN GRID ============= */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+
+    @media (max-width: 900px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* ============= CARDS ============= */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      backdrop-filter: blur(12px);
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .card-header h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-header h3 .icon {
+      font-size: 16px;
+      opacity: 0.8;
+    }
+
+    .card-body {
+      padding: 18px 20px 20px;
+    }
+
+    /* ============= UPLOAD SECTION ============= */
+    .upload-zone {
+      border: 2px dashed rgba(99, 102, 241, 0.2);
+      border-radius: var(--radius-lg);
+      padding: 28px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: var(--transition);
+      background: rgba(99, 102, 241, 0.03);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .upload-zone:hover {
+      border-color: rgba(99, 102, 241, 0.4);
+      background: rgba(99, 102, 241, 0.06);
+    }
+
+    .upload-zone.dragging {
+      border-color: var(--accent);
+      background: var(--accent-glow);
+    }
+
+    .upload-zone .upload-icon {
+      font-size: 32px;
+      margin-bottom: 10px;
+      display: block;
+    }
+
+    .upload-zone .upload-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .upload-zone .upload-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .upload-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    /* ============= BUTTONS ============= */
+    .btn-group {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 9px 16px;
+      border-radius: var(--radius-sm);
+      border: none;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: var(--transition);
+      outline: none;
+      white-space: nowrap;
+    }
+
+    .btn:active {
+      transform: scale(0.97);
+    }
+
+    .btn-primary {
+      background: var(--gradient-1);
+      color: white;
+      box-shadow: 0 2px 12px rgba(99, 102, 241, 0.25);
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 4px 20px rgba(99, 102, 241, 0.35);
+      filter: brightness(1.08);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text-primary);
+    }
+
+    .btn-success {
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid rgba(34, 197, 94, 0.2);
+    }
+
+    .btn-success:hover {
+      background: rgba(34, 197, 94, 0.15);
+    }
+
+    .btn-danger {
+      background: var(--danger-bg);
+      color: var(--danger);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.15);
+    }
+
+    .btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    .btn .btn-icon {
+      font-size: 15px;
+    }
+
+    /* ============= DIVIDER ============= */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 16px 0;
+    }
+
+    /* ============= STATUS BAR ============= */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border);
+      margin-top: 14px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .status-dot.active {
+      background: var(--success);
+      box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+      animation: pulse-dot 2s infinite;
+    }
+
+    .status-dot.streaming {
+      background: var(--accent);
+      box-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
+      animation: pulse-dot 1.5s infinite;
+    }
+
+    .status-dot.error {
+      background: var(--danger);
+    }
+
+    .status-text {
+      font-size: 12px;
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+      color: var(--text-secondary);
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* ============= META INFO ============= */
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .meta-item {
+      padding: 10px 12px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+    }
+
+    .meta-item .meta-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 500;
+      margin-bottom: 3px;
+    }
+
+    .meta-item .meta-value {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+
+    /* ============= CANVAS / PREVIEW ============= */
+    .preview-card .card-body {
+      padding: 12px;
+    }
+
+    .canvas-wrapper {
+      position: relative;
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      background: #000;
+      aspect-ratio: 16/9;
+      cursor: crosshair;
+    }
+
+    .canvas-wrapper canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: contain;
+    }
+
+    .canvas-empty {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    .canvas-empty .empty-icon {
+      font-size: 48px;
+      opacity: 0.3;
+    }
+
+    .canvas-empty .empty-text {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .canvas-empty .empty-hint {
+      font-size: 12px;
+      opacity: 0.6;
+    }
+
+    .canvas-overlay {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      display: flex;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .overlay-badge {
+      padding: 5px 12px;
+      border-radius: 100px;
+      font-size: 11px;
+      font-weight: 600;
+      backdrop-filter: blur(8px);
+      font-family: 'SF Mono', monospace;
+    }
+
+    .badge-frame {
+      background: rgba(0, 0, 0, 0.5);
+      color: rgba(255, 255, 255, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .badge-tracking {
+      background: rgba(99, 102, 241, 0.6);
+      color: white;
+      border: 1px solid rgba(99, 102, 241, 0.4);
+    }
+
+    .badge-idle {
+      background: rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    /* ============= TIP BAR ============= */
+    .tip-bar {
+      margin-top: 10px;
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      background: var(--warning-bg);
+      border: 1px solid rgba(245, 158, 11, 0.12);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--warning);
+      font-weight: 500;
+    }
+
+    /* ============= PROGRESS BAR ============= */
+    .progress-wrap {
+      margin-top: 14px;
+      display: none;
+    }
+
+    .progress-wrap.show {
+      display: block;
+    }
+
+    .progress-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+
+    .progress-bar {
+      height: 4px;
+      border-radius: 100px;
+      background: rgba(255, 255, 255, 0.06);
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      border-radius: 100px;
+      background: var(--gradient-1);
+      transition: width 0.3s ease;
+      width: 0%;
+    }
+
+    .progress-fill.indeterminate {
+      width: 40%;
+      animation: indeterminate 1.5s ease-in-out infinite;
+    }
+
+    @keyframes indeterminate {
+      0% {
+        transform: translateX(-100%);
+      }
+
+      100% {
+        transform: translateX(350%);
+      }
+    }
+
+    /* ============= SECTION LABEL ============= */
+    .section-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-muted);
+      font-weight: 600;
+      margin-bottom: 10px;
+      margin-top: 4px;
+    }
+
+    /* ============= SCROLLBAR ============= */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    /* ============= LOADING ANIMATION ============= */
+    .spin {
+      animation: spin 1s linear infinite;
+      display: inline-block;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* ============= FADE IN ============= */
+    .fade-in {
+      animation: fadeIn 0.4s ease forwards;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
   </style>
 </head>
+
 <body>
-  <h2>SmartFocus — Minimal Client (WebSocket + Canvas)</h2>
-  <p class="muted">Upload → Stream → Click target → Render → Download</p>
 
-  <div class="row">
-    <div class="panel">
-      <div style="margin-bottom:10px;">
-        <input id="file" type="file" accept="video/*">
+  <div class="bg-grid"></div>
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+
+  <div class="app">
+    <!-- Header -->
+    <header class="header fade-in">
+      <div class="logo-group">
+        <div class="logo-icon"></div>
+        <div class="logo-text">
+          <h1>SmartFocus</h1>
+          <p>AI-Powered Video Focus Engine</p>
+        </div>
       </div>
-      <div style="display:flex; gap:10px; flex-wrap:wrap;">
-        <button id="btnUpload">Upload</button>
-        <button id="btnConnect" class="secondary" disabled>Start Stream</button>
-        <button id="btnStop" class="secondary" disabled>Stop Stream</button>
+      <div class="header-badge" id="connectionBadge">
+        <span class="dot" id="connectionDot"></span>
+        <span id="connectionText">Offline</span>
+      </div>
+    </header>
+
+    <!-- Main Grid -->
+    <div class="main-grid">
+
+      <!-- Sidebar Controls -->
+      <aside class="card fade-in" style="animation-delay: 0.1s;">
+
+        <!-- Upload Section -->
+        <div class="card-header">
+          <h3><span class="icon">📁</span> Video Source</h3>
+        </div>
+        <div class="card-body">
+          <div class="upload-zone" id="uploadZone">
+            <span class="upload-icon">🎬</span>
+            <div class="upload-title">Drop video here or click to browse</div>
+            <div class="upload-subtitle">MP4, AVI, MOV — up to 500MB</div>
+            <input id="file" type="file" accept="video/*">
+          </div>
+
+          <div id="fileInfo" style="display:none; margin-top: 10px;">
+            <div
+              style="display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:var(--radius-sm); background:rgba(99,102,241,0.06); border:1px solid rgba(99,102,241,0.12);">
+              <span>📎</span>
+              <span id="fileName"
+                style="font-size:13px; font-weight:500; color:var(--text-primary); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
+            </div>
+          </div>
+
+          <div style="margin-top: 12px;">
+            <button class="btn btn-primary" id="btnUpload" style="width:100%; justify-content:center;">
+              <span class="btn-icon">⬆️</span> Upload Video
+            </button>
+          </div>
+
+          <div class="progress-wrap" id="uploadProgress">
+            <div class="progress-label">Uploading...</div>
+            <div class="progress-bar">
+              <div class="progress-fill indeterminate"></div>
+            </div>
+          </div>
+
+          <!-- Meta Info (shown after upload) -->
+          <div class="meta-grid" id="metaGrid" style="display:none;">
+            <div class="meta-item">
+              <div class="meta-label">Resolution</div>
+              <div class="meta-value" id="metaRes">—</div>
+            </div>
+            <div class="meta-item">
+              <div class="meta-label">FPS</div>
+              <div class="meta-value" id="metaFps">—</div>
+            </div>
+            <div class="meta-item">
+              <div class="meta-label">Frames</div>
+              <div class="meta-value" id="metaFrames">—</div>
+            </div>
+            <div class="meta-item">
+              <div class="meta-label">Video ID</div>
+              <div class="meta-value" id="metaId">—</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stream Controls -->
+        <div class="card-header">
+          <h3><span class="icon">🎮</span> Controls</h3>
+        </div>
+        <div class="card-body">
+          <div class="section-label">Streaming</div>
+          <div class="btn-group">
+            <button class="btn btn-success" id="btnConnect" disabled>
+              <span class="btn-icon">▶️</span> Start Stream
+            </button>
+            <button class="btn btn-danger" id="btnStop" disabled>
+              <span class="btn-icon">⏹️</span> Stop
+            </button>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="section-label">Target</div>
+          <div class="btn-group">
+            <button class="btn btn-secondary" id="btnReset" disabled>
+              <span class="btn-icon">🔄</span> Reset Target
+            </button>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="section-label">Export</div>
+          <div class="btn-group">
+            <button class="btn btn-primary" id="btnRender" disabled>
+              <span class="btn-icon">🎞️</span> Render
+            </button>
+            <button class="btn btn-secondary" id="btnDownload" disabled>
+              <span class="btn-icon">⬇️</span> Download
+            </button>
+          </div>
+
+          <div class="progress-wrap" id="renderProgress">
+            <div class="progress-label">Rendering focused video...</div>
+            <div class="progress-bar">
+              <div class="progress-fill indeterminate"></div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <button class="btn btn-danger" id="btnNew" disabled style="width:100%; justify-content:center;">
+            <span class="btn-icon"></span> New Video
+          </button>
+
+          <!-- Status -->
+          <div class="status-bar" id="statusBar">
+            <div class="status-dot" id="statusDot"></div>
+            <div class="status-text" id="status">Ready — Upload a video to begin</div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Preview -->
+      <div class="card preview-card fade-in" style="animation-delay: 0.2s;">
+        <div class="card-header">
+          <h3><span class="icon">👁️</span> Live Preview</h3>
+          <div class="tip-bar"
+            style="margin:0; padding:5px 10px; font-size:11px; border:none; background:transparent; color:var(--text-muted);">
+            Click on canvas to select target
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="canvas-wrapper" id="canvasWrapper">
+            <canvas id="cv" width="960" height="540"></canvas>
+            <div class="canvas-empty" id="canvasEmpty">
+              <div class="empty-icon">🎥</div>
+              <div class="empty-text">No stream active</div>
+              <div class="empty-hint">Upload a video and start streaming</div>
+            </div>
+            <div class="canvas-overlay" id="canvasOverlay" style="display:none;">
+              <div class="overlay-badge badge-frame" id="overlayFrame">Frame 0</div>
+              <div class="overlay-badge badge-idle" id="overlayStatus">IDLE</div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <hr style="border:0; border-top:1px solid #2a2a2a; margin:14px 0;">
-
-      <div style="display:flex; gap:10px; flex-wrap:wrap;">
-        <button id="btnReset" class="secondary" disabled>Reset Target</button>
-        <button id="btnRender" disabled>Render</button>
-        <button id="btnDownload" disabled>Download</button>
-        <button id="btnNew" class="danger" disabled>New Video</button>
-      </div>
-
-      <hr style="border:0; border-top:1px solid #2a2a2a; margin:14px 0;">
-
-      <div class="status" id="status">Status: idle</div>
-      <div class="muted" id="meta"></div>
-      <div class="muted">Tip: click on the canvas to select the subject.</div>
-    </div>
-
-    <div class="panel">
-      <canvas id="cv" width="640" height="360"></canvas>
     </div>
   </div>
 
-<script>
-(() => {
-  // CHANGE IF NEEDED
-  const API_URL = "http://10.99.224.115:8000";
+  <script>
+    (() => {
+      // Auto-detect server URL
+      const API_URL = "http://10.99.224.115:8000";
+        // ? "http://10.99.224.115:8000"
+        // : window.location.origin;
 
-  let videoId = null;
-  let meta = null;
+      let videoId = null;
+      let meta = null;
+      let ws = null;
+      let expectingBinary = false;
+      let lastHeader = null;
+      let lastFrameIndex = 0;
+      let lastDownscale = 640;
+      let isDrawing = false;
+      let pendingFrame = null;
 
-  let ws = null;
-  let expectingBinary = false;
-  let lastHeader = null;
-  let lastFrameIndex = 0;
-  let lastDownscale = 640;
+      // DOM
+      const elFile = document.getElementById('file');
+      const btnUpload = document.getElementById('btnUpload');
+      const btnConnect = document.getElementById('btnConnect');
+      const btnStop = document.getElementById('btnStop');
+      const btnReset = document.getElementById('btnReset');
+      const btnRender = document.getElementById('btnRender');
+      const btnDownload = document.getElementById('btnDownload');
+      const btnNew = document.getElementById('btnNew');
+      const statusEl = document.getElementById('status');
+      const statusDot = document.getElementById('statusDot');
+      const canvas = document.getElementById('cv');
+      const ctx = canvas.getContext('2d');
+      const canvasEmpty = document.getElementById('canvasEmpty');
+      const canvasOverlay = document.getElementById('canvasOverlay');
+      const overlayFrame = document.getElementById('overlayFrame');
+      const overlayStatus = document.getElementById('overlayStatus');
+      const connectionDot = document.getElementById('connectionDot');
+      const connectionText = document.getElementById('connectionText');
 
-  // simple "drop frames if busy" mechanism
-  let isDrawing = false;
-  let pendingFrame = null; // keep only the latest pending frame
+      function setStatus(s, type = 'default') {
+        statusEl.textContent = s;
+        statusDot.className = 'status-dot';
+        if (type === 'active') statusDot.classList.add('active');
+        else if (type === 'streaming') statusDot.classList.add('streaming');
+        else if (type === 'error') statusDot.classList.add('error');
+      }
 
-  const elFile = document.getElementById('file');
-  const btnUpload = document.getElementById('btnUpload');
-  const btnConnect = document.getElementById('btnConnect');
-  const btnStop = document.getElementById('btnStop');
-  const btnReset = document.getElementById('btnReset');
-  const btnRender = document.getElementById('btnRender');
-  const btnDownload = document.getElementById('btnDownload');
-  const btnNew = document.getElementById('btnNew');
+      function setConnection(connected) {
+        connectionDot.className = 'dot' + (connected ? ' live' : '');
+        connectionText.textContent = connected ? 'Connected' : 'Offline';
+      }
 
-  const statusEl = document.getElementById('status');
-  const metaEl = document.getElementById('meta');
+      function enableControls(afterUpload) {
+        btnConnect.disabled = !afterUpload;
+        btnReset.disabled = !afterUpload;
+        btnRender.disabled = !afterUpload;
+        btnDownload.disabled = !afterUpload;
+        btnNew.disabled = !afterUpload;
+      }
 
-  const canvas = document.getElementById('cv');
-  const ctx = canvas.getContext('2d');
+      // File select display
+      elFile.addEventListener('change', () => {
+        const file = elFile.files && elFile.files[0];
+        if (file) {
+          document.getElementById('fileInfo').style.display = 'block';
+          document.getElementById('fileName').textContent = file.name;
+        }
+      });
 
-  function setStatus(s) {
-    statusEl.textContent = "Status: " + s;
-  }
+      // Drag & drop
+      const uploadZone = document.getElementById('uploadZone');
+      uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('dragging'); });
+      uploadZone.addEventListener('dragleave', () => { uploadZone.classList.remove('dragging'); });
+      uploadZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadZone.classList.remove('dragging');
+        if (e.dataTransfer.files.length) {
+          elFile.files = e.dataTransfer.files;
+          elFile.dispatchEvent(new Event('change'));
+        }
+      });
 
-  function enableControls(afterUpload) {
-    btnConnect.disabled = !afterUpload;
-    btnReset.disabled = !afterUpload;
-    btnRender.disabled = !afterUpload;
-    btnDownload.disabled = !afterUpload;
-    btnNew.disabled = !afterUpload;
-  }
+      // Upload
+      btnUpload.onclick = async () => {
+        const file = elFile.files && elFile.files[0];
+        if (!file) { alert("Choose a video first."); return; }
 
-  btnUpload.onclick = async () => {
-    const file = elFile.files && elFile.files[0];
-    if (!file) { alert("Choose a video first."); return; }
+        setStatus("Uploading video...", "streaming");
+        btnUpload.disabled = true;
+        document.getElementById('uploadProgress').classList.add('show');
 
-    setStatus("uploading...");
-    btnUpload.disabled = true;
+        const fd = new FormData();
+        fd.append("file", file);
 
-    const fd = new FormData();
-    fd.append("file", file);
+        try {
+          const res = await fetch(API_URL + "/upload", { method: "POST", body: fd });
+          if (!res.ok) throw new Error("Upload failed: " + res.status);
 
-    try {
-      const res = await fetch(API_URL + "/upload", { method:"POST", body: fd });
-      if (!res.ok) throw new Error("Upload failed: " + res.status);
+          const data = await res.json();
+          videoId = data.video_id;
+          meta = data.meta;
 
-      const data = await res.json();
-      videoId = data.video_id;
-      meta = data.meta;
+          document.getElementById('metaGrid').style.display = 'grid';
+          document.getElementById('metaRes').textContent = `${meta.width}×${meta.height}`;
+          document.getElementById('metaFps').textContent = Math.round(meta.fps);
+          document.getElementById('metaFrames').textContent = meta.frame_count > 0 ? meta.frame_count.toLocaleString() : '—';
+          document.getElementById('metaId').textContent = videoId;
 
-      metaEl.textContent = `video_id=${videoId} | ${meta.width}x${meta.height} | fps=${meta.fps} | frames=${meta.frame_count}`;
-      setStatus("uploaded. ready to stream");
-      enableControls(true);
-      btnStop.disabled = true;
-      btnUpload.disabled = false;
-
-    } catch (e) {
-      console.error(e);
-      alert(e.message || "Upload failed");
-      setStatus("idle");
-      btnUpload.disabled = false;
-    }
-  };
-
-  btnConnect.onclick = () => {
-    if (!videoId) return;
-
-    if (ws) {
-      try { ws.close(); } catch {}
-      ws = null;
-    }
-
-    setStatus("connecting websocket...");
-    btnConnect.disabled = true;
-    btnStop.disabled = false;
-
-    ws = new WebSocket(API_URL.replace("http", "ws") + "/ws/stream");
-    ws.binaryType = "arraybuffer";
-
-    ws.onopen = () => {
-      setStatus("ws open. starting stream...");
-      // keep this simple + stable
-      const cfg = {
-        video_id: videoId,
-        downscale: 640,      // IMPORTANT: keep same for select
-        infer_every: 5,
-        jpg_quality: 70,
-        fps: 10,
-        blur_ksize: 25,
-        feather_px: 5,
-        outline: false
+          setStatus("Upload complete — Ready to stream", "active");
+          setConnection(true);
+          enableControls(true);
+          btnStop.disabled = true;
+          btnUpload.disabled = false;
+        } catch (e) {
+          console.error(e);
+          setStatus("Upload failed: " + (e.message || "Unknown error"), "error");
+          btnUpload.disabled = false;
+        } finally {
+          document.getElementById('uploadProgress').classList.remove('show');
+        }
       };
-      ws.send(JSON.stringify(cfg));
-    };
 
-    ws.onmessage = async (ev) => {
-      // JSON header
-      if (typeof ev.data === "string") {
-        const msg = JSON.parse(ev.data);
+      // Connect WebSocket
+      btnConnect.onclick = () => {
+        if (!videoId) return;
+        if (ws) { try { ws.close(); } catch { } ws = null; }
 
-        if (msg.type === "ready") {
-          setStatus("streaming (ws+canvas)");
+        setStatus("Connecting to stream...", "streaming");
+        btnConnect.disabled = true;
+        btnStop.disabled = false;
+
+        ws = new WebSocket(API_URL.replace("http", "ws") + "/ws/stream");
+        ws.binaryType = "arraybuffer";
+
+        ws.onopen = () => {
+          setStatus("Stream active — Click on subject to track", "streaming");
+          canvasEmpty.style.display = 'none';
+          canvasOverlay.style.display = 'flex';
+
+          ws.send(JSON.stringify({
+            video_id: videoId,
+            downscale: 640,
+            infer_every: 5,
+            jpg_quality: 70,
+            fps: 10,
+            blur_ksize: 25,
+            feather_px: 5,
+            outline: false
+          }));
+        };
+
+        ws.onmessage = async (ev) => {
+          if (typeof ev.data === "string") {
+            const msg = JSON.parse(ev.data);
+            if (msg.type === "ready") {
+              expectingBinary = false;
+              lastHeader = null;
+              return;
+            }
+            if (msg.type === "error") {
+              setStatus("Server error: " + msg.message, "error");
+              return;
+            }
+            if (msg.type === "frame") {
+              lastHeader = msg;
+              lastFrameIndex = msg.frame_index;
+              lastDownscale = msg.downscale || 640;
+              expectingBinary = true;
+              return;
+            }
+            return;
+          }
+
+          if (!expectingBinary || !lastHeader) return;
           expectingBinary = false;
-          lastHeader = null;
-          return;
+
+          pendingFrame = { header: lastHeader, buf: ev.data };
+          if (!isDrawing) drawLoop();
+        };
+
+        ws.onclose = () => {
+          setStatus("Stream disconnected", "default");
+          setConnection(false);
+          btnConnect.disabled = false;
+          btnStop.disabled = true;
+        };
+
+        ws.onerror = (e) => {
+          console.error("ws error", e);
+          setStatus("Connection error", "error");
+        };
+      };
+
+      async function drawLoop() {
+        if (!pendingFrame) return;
+        isDrawing = true;
+
+        const { header, buf } = pendingFrame;
+        pendingFrame = null;
+
+        try {
+          if (canvas.width !== header.w || canvas.height !== header.h) {
+            canvas.width = header.w;
+            canvas.height = header.h;
+          }
+
+          const blob = new Blob([buf], { type: "image/jpeg" });
+          const bmp = await createImageBitmap(blob);
+          ctx.drawImage(bmp, 0, 0);
+
+          // Update overlays
+          overlayFrame.textContent = `Frame ${header.frame_index}`;
+
+          if (header.locked) {
+            overlayStatus.textContent = '● TRACKING';
+            overlayStatus.className = 'overlay-badge badge-tracking';
+            setStatus(`Tracking target — Frame ${header.frame_index}`, "streaming");
+          } else {
+            overlayStatus.textContent = 'IDLE';
+            overlayStatus.className = 'overlay-badge badge-idle';
+          }
+
+        } catch (e) {
+          console.error("draw error", e);
+        } finally {
+          isDrawing = false;
+          if (pendingFrame) drawLoop();
         }
+      }
 
-        if (msg.type === "error") {
-          setStatus("server error: " + msg.message);
-          return;
+      // Stop
+      btnStop.onclick = () => {
+        if (ws) { try { ws.close(); } catch { } ws = null; }
+        btnConnect.disabled = false;
+        btnStop.disabled = true;
+        setStatus("Stream stopped", "default");
+      };
+
+      // Click-to-select
+      canvas.addEventListener("click", async (e) => {
+        if (!videoId || !meta) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const x = Math.floor((e.clientX - rect.left) * (canvas.width / rect.width));
+        const y = Math.floor((e.clientY - rect.top) * (canvas.height / rect.height));
+
+        const fd = new FormData();
+        fd.append("video_id", videoId);
+        fd.append("frame_index", String(lastFrameIndex));
+        fd.append("x", String(x));
+        fd.append("y", String(y));
+        fd.append("downscale", String(lastDownscale));
+
+        try {
+          setStatus("Selecting target...", "streaming");
+          const res = await fetch(API_URL + "/select", { method: "POST", body: fd });
+          const data = await res.json();
+          if (data.selected || data.ok) {
+            setStatus("Target selected ✓ — Tracking active", "active");
+          } else {
+            setStatus("No target found — Click on a person or object", "default");
+          }
+        } catch (e2) {
+          console.error(e2);
+          setStatus("Selection failed", "error");
         }
+      });
 
-        if (msg.type === "frame") {
-          lastHeader = msg;
-          lastFrameIndex = msg.frame_index;
-          lastDownscale = msg.downscale || 640;
-          expectingBinary = true;
-          return;
+      // Reset
+      btnReset.onclick = async () => {
+        if (!videoId) return;
+        const fd = new FormData();
+        fd.append("video_id", videoId);
+        try {
+          await fetch(API_URL + "/reset", { method: "POST", body: fd });
+          setStatus("Target reset — Click to select new target", "default");
+        } catch (e) {
+          console.error(e);
+          setStatus("Reset failed", "error");
         }
+      };
 
-        return;
-      }
+      // Render
+      btnRender.onclick = async () => {
+        if (!videoId) return;
+        setStatus("Rendering focused video...", "streaming");
+        document.getElementById('renderProgress').classList.add('show');
+        btnRender.disabled = true;
 
-      // Binary JPEG
-      if (!expectingBinary || !lastHeader) return;
-      expectingBinary = false;
+        const fd = new FormData();
+        fd.append("video_id", videoId);
 
-      const buf = ev.data; // ArrayBuffer
-      // If we are already drawing, keep only latest buffer (drop older)
-      pendingFrame = { header: lastHeader, buf };
+        try {
+          const res = await fetch(API_URL + "/render", { method: "POST", body: fd });
+          const data = await res.json();
+          if (data.ok) {
+            setStatus("Render complete ✓ — Ready to download", "active");
+          } else {
+            setStatus("Render failed", "error");
+          }
+        } catch (e) {
+          console.error(e);
+          setStatus("Render failed", "error");
+        } finally {
+          document.getElementById('renderProgress').classList.remove('show');
+          btnRender.disabled = false;
+        }
+      };
 
-      if (!isDrawing) {
-        drawLoop();
-      }
-    };
+      // Download
+      btnDownload.onclick = () => {
+        if (!videoId) return;
+        window.open(API_URL + "/download?video_id=" + encodeURIComponent(videoId), "_blank");
+      };
 
-    ws.onclose = () => {
-      setStatus("ws closed");
-      btnConnect.disabled = false;
-      btnStop.disabled = true;
-    };
+      // New
+      btnNew.onclick = () => {
+        videoId = null;
+        meta = null;
+        setStatus("Ready — Upload a video to begin", "default");
+        setConnection(false);
+        enableControls(false);
+        btnStop.disabled = true;
+        if (ws) { try { ws.close(); } catch { } ws = null; }
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        canvasEmpty.style.display = 'flex';
+        canvasOverlay.style.display = 'none';
+        document.getElementById('metaGrid').style.display = 'none';
+        document.getElementById('fileInfo').style.display = 'none';
+      };
 
-    ws.onerror = (e) => {
-      console.error("ws error", e);
-      setStatus("ws error");
-    };
-  };
-
-  async function drawLoop() {
-    if (!pendingFrame) return;
-    isDrawing = true;
-
-    const { header, buf } = pendingFrame;
-    pendingFrame = null;
-
-    try {
-      // Resize canvas to match streamed frame (so click mapping is 1:1)
-      if (canvas.width !== header.w || canvas.height !== header.h) {
-        canvas.width = header.w;
-        canvas.height = header.h;
-      }
-
-      const blob = new Blob([buf], { type: "image/jpeg" });
-      const bmp = await createImageBitmap(blob);
-
-      ctx.drawImage(bmp, 0, 0);
-
-      // Overlay tiny status
-      ctx.fillStyle = "rgba(0,0,0,0.55)";
-      ctx.fillRect(10, 10, 220, 28);
-      ctx.fillStyle = "#fff";
-      ctx.font = "14px ui-monospace, Menlo, monospace";
-      ctx.fillText(`frame ${header.frame_index}  ${header.locked ? "● TRACKING" : ""}`, 16, 30);
-
-    } catch (e) {
-      console.error("draw error", e);
-    } finally {
-      isDrawing = false;
-      if (pendingFrame) drawLoop(); // draw latest pending frame only
-    }
-  }
-
-  btnStop.onclick = () => {
-    if (ws) {
-      try { ws.close(); } catch {}
-      ws = null;
-    }
-    btnConnect.disabled = false;
-    btnStop.disabled = true;
-    setStatus("stopped");
-  };
-
-  // Click-to-select
-  canvas.addEventListener("click", async (e) => {
-    if (!videoId || !meta) return;
-
-    // Canvas is same size as downscaled frame => click coords are direct
-    const rect = canvas.getBoundingClientRect();
-    const x = Math.floor((e.clientX - rect.left) * (canvas.width / rect.width));
-    const y = Math.floor((e.clientY - rect.top) * (canvas.height / rect.height));
-
-    const fd = new FormData();
-    fd.append("video_id", videoId);
-    fd.append("frame_index", String(lastFrameIndex)); // use last streamed frame index
-    fd.append("x", String(x));
-    fd.append("y", String(y));
-    fd.append("downscale", String(lastDownscale)); // MUST match stream downscale
-
-    try {
-      const res = await fetch(API_URL + "/select", { method:"POST", body: fd });
-      const data = await res.json();
-
-      if (data.selected || data.ok) {
-        setStatus("selected target ✅");
-      } else {
-        setStatus("no target found (try clicking on person/object)");
-      }
-    } catch (e2) {
-      console.error(e2);
-      setStatus("select failed");
-    }
-  });
-
-  btnReset.onclick = async () => {
-    if (!videoId) return;
-
-    const fd = new FormData();
-    fd.append("video_id", videoId);
-
-    try {
-      await fetch(API_URL + "/reset", { method:"POST", body: fd });
-      setStatus("reset ✅");
-    } catch (e) {
-      console.error(e);
-      setStatus("reset failed");
-    }
-  };
-
-  btnRender.onclick = async () => {
-    if (!videoId) return;
-    setStatus("rendering...");
-
-    const fd = new FormData();
-    fd.append("video_id", videoId);
-
-    try {
-      const res = await fetch(API_URL + "/render", { method:"POST", body: fd });
-      const data = await res.json();
-      if (data.ok) setStatus("render complete ✅");
-      else setStatus("render failed");
-    } catch (e) {
-      console.error(e);
-      setStatus("render failed");
-    }
-  };
-
-  btnDownload.onclick = () => {
-    if (!videoId) return;
-    window.open(API_URL + "/download?video_id=" + encodeURIComponent(videoId), "_blank");
-  };
-
-  btnNew.onclick = () => {
-    videoId = null;
-    meta = null;
-    metaEl.textContent = "";
-    setStatus("idle");
-    enableControls(false);
-    btnStop.disabled = true;
-    if (ws) { try { ws.close(); } catch {} ws = null; }
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-  };
-
-  enableControls(false);
-})();
-</script>
+      enableControls(false);
+    })();
+  </script>
 </body>
+
 </html>

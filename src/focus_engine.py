@@ -93,7 +93,7 @@ class FocusEngine:
     def __init__(
         self,
         model_path: str = "yolov8n-seg.pt",
-        device: str = "0",
+        device: str = "cuda:0",
         tracker: str = "bytetrack.yaml",
         conf: float = 0.25,
         iou: float = 0.5,
