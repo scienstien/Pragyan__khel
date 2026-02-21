@@ -1,114 +1,277 @@
-# 🎯 SmartFocus — AI Video Focus Engine
+🧠 AI-Based Smart Autofocus & Dynamic Subject Tracking System
+Faustian_for{loop}
 
-SmartFocus is an AI-powered video processing tool that uses **YOLOv8 segmentation** with **ByteTrack** to let users click on any subject in a video and automatically blur the background while keeping the selected subject in sharp focus.
+🚀 Overview
 
-![SmartFocus UI](https://img.shields.io/badge/Status-Active-brightgreen) ![Python](https://img.shields.io/badge/Python-3.10+-blue) ![CUDA](https://img.shields.io/badge/CUDA-11.8-green) ![FastAPI](https://img.shields.io/badge/FastAPI-Latest-teal)
+This project implements an AI-powered Smart Autofocus & Dynamic Subject Tracking System that allows a user to:
 
-## ✨ Features
+Click on any object in a video
 
-- **Click-to-Track** — Click on any person/object to lock focus
-- **Real-time Preview** — WebSocket-powered live video stream with blur compositing
-- **Instance Segmentation** — YOLOv8n-seg for pixel-accurate masks
-- **Background Blur** — Gaussian blur with feathered mask edges
-- **Export** — Render and download the focused video
-- **GPU Accelerated** — CUDA support for fast inference
+Track the selected subject across frames
 
-## 🏗️ Tech Stack
+Keep the selected subject sharp
 
-| Layer | Technology |
-|-------|-----------|
-| **ML Model** | YOLOv8n-seg (Ultralytics) |
-| **Tracking** | ByteTrack |
-| **Backend** | FastAPI + Uvicorn |
-| **Frontend** | Vanilla HTML/CSS/JS |
-| **Streaming** | WebSocket (binary JPEG frames) |
-| **GPU** | NVIDIA CUDA 11.8 + PyTorch |
-| **Container** | Docker + NVIDIA Container Toolkit |
+Apply background blur to all other objects
 
-## 📁 Project Structure
+Switch focus instantly by clicking another subject
 
-```
-├── api_ml.py              # FastAPI server (upload, stream, select, render, download)
-├── main.py                # Local OpenCV preview (desktop only)
-├── src/
-│   └── focus_engine.py    # Core engine — YOLO inference, tracking, mask compositing
-├── frontend/
-│   └── index.html         # Web UI (dark theme, WebSocket canvas)
-├── models/                # YOLOv8 weights (auto-downloaded)
-├── runs/                  # Video inputs, outputs, and job state
-├── Dockerfile             # GPU-enabled container (CUDA 11.8)
-├── docker-compose.yml     # One-command deploy with GPU passthrough
-├── setup_server.sh        # EC2 server setup script
-├── requirements.txt       # Python dependencies
-└── DEPLOY.md              # AWS deployment guide
-```
+Render a cinematic output video
 
-## 🚀 Quick Start
+The system combines modern computer vision techniques such as object detection, multi-object tracking, and segmentation-based compositing to deliver a real-time interactive experience.
 
-### Local (CPU — for testing)
+🎯 Problem Statement
 
-```bash
+Traditional autofocus systems focus only on faces or predefined objects.
+Our goal was to build a system that:
+
+Allows arbitrary object selection
+
+Maintains subject identity across frames
+
+Handles occlusion and motion
+
+Applies high-quality segmentation-based blur
+
+Runs on-device using GPU acceleration
+
+🏗️ System Architecture
+1️⃣ Vision Layer (AI Engine)
+
+YOLOv8 (Segmentation variant) for object detection and mask generation
+
+ByteTrack for persistent multi-object tracking
+
+Pixel-level segmentation for accurate subject isolation
+
+Selective Gaussian blur compositing for cinematic focus
+
+2️⃣ Backend Layer (FastAPI)
+
+Handles video uploads
+
+Manages per-video tracking state
+
+Exposes REST API endpoints
+
+Uses GPU acceleration (RTX 4060)
+
+3️⃣ Frontend Layer (Next.js)
+
+Upload interface
+
+Frame preview rendering
+
+Click-to-select interaction
+
+Play/Pause controls
+
+Render & download functionality
+
+🧠 Core Technical Concepts
+🔹 Object Detection (YOLOv8)
+
+A one-stage real-time detector that predicts bounding boxes and segmentation masks in a single forward pass.
+
+🔹 Multi-Object Tracking (ByteTrack)
+
+Maintains consistent identity (track_id) across frames, ensuring that once a user selects an object, the same physical object continues to be tracked.
+
+🔹 Click-to-Identity Lock
+
+When the user clicks:
+
+We determine which bounding box contains the click
+
+We lock its track_id
+
+All future frames follow this identity
+
+🔹 Segmentation-Based Blur
+
+For each frame:
+
+Extract subject mask
+
+Blur entire frame
+
+Composite sharp subject over blurred background
+
+Feather edges for smooth transitions
+
+✨ Key Features
+
+Real-time object selection
+
+Persistent identity tracking
+
+Segmentation-based blur (not bounding-box blur)
+
+Instant focus switching
+
+GPU acceleration
+
+Modular architecture
+
+Scalable backend API
+
+🎥 Live Camera Capability (V2)
+
+Our system architecture supports real-time live camera blur.
+
+We have already implemented the capability to:
+
+Capture live webcam feed
+
+Perform detection + tracking in real time
+
+Apply segmentation-based background blur
+
+However, in this hackathon version, we focused on uploaded video processing for stability and evaluation clarity.
+
+In Version 2, we plan to:
+
+Integrate live webcam streaming into the frontend
+
+Enable real-time autofocus in browser
+
+Support WebRTC-based streaming
+
+Deploy optimized streaming endpoints
+
+🖥️ Hardware Requirements
+
+NVIDIA GPU recommended (RTX 4060 used in development)
+
+CUDA-compatible PyTorch
+
+8GB+ RAM recommended
+
+📦 Installation & Setup Guide
+1️⃣ Clone the Repository
+git clone https://github.com/your-username/your-repo.git
+cd your-repo
+2️⃣ Create Virtual Environment
+Windows
+python -m venv venv
+venv\Scripts\activate
+Mac/Linux
+python3 -m venv venv
+source venv/bin/activate
+3️⃣ Install Dependencies
 pip install -r requirements.txt
-pip install torch torchvision
 
-# Start API server
+If running on GPU, ensure CUDA-enabled PyTorch is installed:
+
+Visit:
+https://pytorch.org/get-started/locally/
+
+4️⃣ Run Backend (FastAPI)
 uvicorn api_ml:app --host 0.0.0.0 --port 8000
 
-# Open http://localhost:8000 in browser
-```
+Check:
 
-### Docker (GPU)
+http://localhost:8000/health
+http://localhost:8000/docs
+5️⃣ Run Frontend (Next.js)
 
-```bash
-# Build and run with GPU
-docker compose up --build -d
+Navigate to frontend folder:
 
-# Check logs
-docker compose logs -f
-```
+cd TeamName_NextGenHackathon
+npm install
+npm run dev
 
-### AWS EC2 (Production GPU)
+Open:
 
-See [DEPLOY.md](DEPLOY.md) for full step-by-step instructions. TL;DR:
+http://localhost:3000
+🌐 Network Setup (If Using Multiple Laptops)
 
-1. Launch **g4dn.xlarge** EC2 with Deep Learning AMI (Ubuntu 22.04)
-2. Upload project: `scp -i key.pem -r . ubuntu@<IP>:~/smartfocus`
-3. SSH in and run: `bash setup_server.sh`
+If frontend and backend are on different machines:
 
-App will be live at `http://<EC2_IP>:8000/`
+Find backend laptop IP:
 
-## 🎮 Usage
+ipconfig
 
-1. **Upload** a video (MP4, AVI, MOV)
-2. **Start Stream** to begin live preview
-3. **Click** on the subject you want to focus on
-4. The background blurs automatically while tracking the subject
-5. **Render** the final video and **Download** it
+Use:
 
-## 📡 API Endpoints
+http://<your-ip>:8000
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/health` | Health check + GPU info |
-| `GET` | `/` | Frontend UI |
-| `POST` | `/upload` | Upload video file |
-| `WS` | `/ws/stream` | WebSocket video stream |
-| `POST` | `/select` | Select target at (x, y) |
-| `POST` | `/reset` | Reset target lock |
-| `POST` | `/render` | Render focused video |
-| `GET` | `/download` | Download rendered video |
-| `POST` | `/close` | Close job |
+instead of localhost
 
-## 🔧 Configuration
+📡 API Endpoints
+Upload Video
+POST /upload
+Get Preview Frame
+GET /frame
+Select Target
+POST /select
+Reset Focus
+POST /reset
+Render Output
+POST /render
+Download Final Video
+GET /download
+🧪 Running Locally Without Frontend
 
-Environment variables:
+You can test the model using:
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DEVICE` | `auto` | GPU device (`0`, `cpu`, or `auto`) |
+python main.py
 
-## 📄 License
+This opens a local OpenCV window for:
 
-MIT
+Click-to-select
 
+Frame stepping
 
+Blur preview
+
+⚙️ Project Structure
+src/
+  focus_engine.py
+api_ml.py
+main.py
+models/
+runs/
+TeamName_NextGenHackathon/
+🧩 Challenges Faced
+
+Click coordinate mismatch due to resizing
+
+Frame seeking latency in OpenCV
+
+Maintaining tracking identity across occlusion
+
+Optimizing blur performance for real-time preview
+
+🌍 Real-World Applications
+
+Smart camera autofocus systems
+
+Video conferencing tools
+
+Cinematic video editing
+
+Content creation platforms
+
+Surveillance analytics
+
+Sports tracking systems
+
+🚀 Future Improvements
+
+Live webcam integration
+
+WebRTC streaming
+
+Depth-aware blur
+
+Mobile deployment
+
+Edge device optimization
+
+Cloud deployment
+
+🏁 Conclusion
+
+This project demonstrates how modern computer vision techniques can be integrated into a scalable, interactive, and real-world application for dynamic autofocus and subject tracking.
+
+Our modular design ensures extensibility for live camera streaming, edge deployment, and production-scale integration.
