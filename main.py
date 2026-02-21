@@ -75,10 +75,6 @@ def main():
         imgsz=640,
         job_root=os.path.join("runs", "jobs"),
     )
-    import torch
-    print("CUDA available:", torch.cuda.is_available())
-    if torch.cuda.is_available():
-        print("GPU:", torch.cuda.get_device_name(0))
 
     video_id = "local_" + str(uuid.uuid4())[:8]
     meta = engine.init_job(video_id, video_path)
